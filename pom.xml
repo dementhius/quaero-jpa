@@ -1,0 +1,289 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>io.github.dementhius</groupId>
+    <artifactId>quaero-jpa</artifactId>
+    <version>1.0.0</version>
+    <packaging>jar</packaging>
+
+    <name>Quaero JPA</name>
+    <description>
+        Dynamic query builder for Hibernate/JPA.
+        Turns a JSON Query object from the frontend into a fully-typed
+        JPA Criteria API query at runtime — no extra repositories,
+        no conditional nullchecks, no duplicated SQL.
+    </description>
+    <url>https://github.com/dementhius/quaero-jpa</url>
+    <inceptionYear>2026</inceptionYear>
+
+    <licenses>
+        <license>
+            <name>Apache License, Version 2.0</name>
+            <url>https://www.apache.org/licenses/LICENSE-2.0</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+
+    <developers>
+        <developer>
+            <id>dementhius</id>
+            <email>4408471+dementhius@users.noreply.github.com</email>
+            <url>https://github.com/dementhius</url>
+            <timezone>Europe/Madrid</timezone>
+        </developer>
+    </developers>
+
+    <scm>
+        <connection>scm:git:git://github.com/dementhius/quaero-jpa.git</connection>
+        <developerConnection>scm:git:ssh://github.com/dementhius/quaero-jpa.git</developerConnection>
+        <url>https://github.com/dementhius/quaero-jpa</url>
+        <tag>v1.0.0</tag>
+    </scm>
+
+    <issueManagement>
+        <system>GitHub Issues</system>
+        <url>https://github.com/dementhius/quaero-jpa/issues</url>
+    </issueManagement>
+
+    <!--  PROPERTIES  -->
+    <properties>
+        <java.version>1.8</java.version>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+        <maven.compiler.source>1.8</maven.compiler.source>
+        <maven.compiler.target>1.8</maven.compiler.target>
+
+        <!-- Dependency versions -->
+        <jackson.version>2.13.3</jackson.version>
+        <hibernate.version>5.3.9.Final</hibernate.version>
+        <jpa.version>2.2</jpa.version>
+        <spring-data-jpa.version>2.1.21.RELEASE</spring-data-jpa.version>
+        <commons-lang3.version>3.20.0</commons-lang3.version>
+
+        <!-- Plugin versions -->
+        <maven-compiler-plugin.version>3.11.0</maven-compiler-plugin.version>
+        <maven-source-plugin.version>3.3.0</maven-source-plugin.version>
+        <maven-javadoc-plugin.version>3.6.3</maven-javadoc-plugin.version>
+        <maven-gpg-plugin.version>3.1.0</maven-gpg-plugin.version>
+        <central-publishing-plugin.version>0.5.0</central-publishing-plugin.version>
+        <maven-surefire-plugin.version>3.2.5</maven-surefire-plugin.version>
+    </properties>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!--  DEPENDENCIES                                                       -->
+    <!--  The consumer's own Spring Boot / Hibernate setup provides them.    -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <dependencies>
+
+        <!-- JPA API — the only hard compile dependency -->
+        <dependency>
+            <groupId>javax.persistence</groupId>
+            <artifactId>javax.persistence-api</artifactId>
+            <version>${jpa.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- Hibernate — provided by the consumer's runtime -->
+        <dependency>
+            <groupId>org.hibernate</groupId>
+            <artifactId>hibernate-core</artifactId>
+            <version>${hibernate.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- Spring Data JPA — provided by the consumer -->
+        <dependency>
+            <groupId>org.springframework.data</groupId>
+            <artifactId>spring-data-jpa</artifactId>
+            <version>${spring-data-jpa.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- Jackson — required for @JsonTypeInfo / @JsonSubTypes deserialization -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-core</artifactId>
+            <version>${jackson.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>${jackson.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-annotations</artifactId>
+            <version>${jackson.version}</version>
+        </dependency>
+
+        <!-- Commons Lang3 — used in QueryUtils path parsing -->
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-lang3</artifactId>
+            <version>${commons-lang3.version}</version>
+        </dependency>
+
+        <!-- Spring Boot Autoconfigure — optional, enables auto-configuration -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-autoconfigure</artifactId>
+            <version>2.1.18.RELEASE</version>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- Spring Context — optional, needed for @Configuration / @Bean -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-context</artifactId>
+            <version>5.1.19.RELEASE</version>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- ── Test scope ────────────────────────────────────────────── -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>5.10.2</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+			<plugin>
+			    <groupId>com.mycila</groupId>
+			    <artifactId>license-maven-plugin</artifactId>
+			    <version>4.3</version>
+			    <configuration>
+			        <licenseSets>
+			            <licenseSet>
+			                <header>src/license/header.txt</header>
+			                <includes>
+			                    <include>src/main/java/**/*.java</include>
+			                    <include>src/test/java/**/*.java</include>
+			                </includes>
+			                <excludes>
+			                    <exclude>**/package-info.java</exclude>
+			                </excludes>
+			            </licenseSet>
+			        </licenseSets>
+			        <properties>
+			            <owner>Ddementhius</owner>
+			            <year>2026</year>
+			        </properties>
+			        <strictCheck>true</strictCheck>
+			    </configuration>
+			    <executions>
+			        <execution>
+			            <id>check-license</id>
+			            <phase>verify</phase>
+			            <goals>
+			                <goal>check</goal>
+			            </goals>
+			        </execution>
+			    </executions>
+			</plugin>
+            <!-- Compiler — enforce Java 8 -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>${maven-compiler-plugin.version}</version>
+                <configuration>
+                    <source>${java.version}</source>
+                    <target>${java.version}</target>
+                    <encoding>UTF-8</encoding>
+                </configuration>
+            </plugin>
+
+            <!-- Surefire — run JUnit 5 tests -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>${maven-surefire-plugin.version}</version>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-source-plugin</artifactId>
+                <version>${maven-source-plugin.version}</version>
+                <executions>
+                    <execution>
+                        <id>attach-sources</id>
+                        <goals>
+                            <goal>jar-no-fork</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+                <version>${maven-javadoc-plugin.version}</version>
+                <configuration>
+                    <encoding>UTF-8</encoding>
+                    <!--
+                        doclint=none avoids build failures due to incomplete
+                        Javadoc on internal/generated classes.
+                        Remove once all public API is fully documented.
+                    -->
+                    <doclint>none</doclint>
+                    <quiet>true</quiet>
+                    <detectJavaApiLink>false</detectJavaApiLink>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>attach-javadocs</id>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- 3. GPG signing -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-gpg-plugin</artifactId>
+                <version>${maven-gpg-plugin.version}</version>
+                <executions>
+                    <execution>
+                        <id>sign-artifacts</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>sign</goal>
+                        </goals>
+                        <configuration>
+                            <gpgArguments>
+                                <arg>--pinentry-mode</arg>
+                                <arg>loopback</arg>
+                            </gpgArguments>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- 4. Central Publishing  -->
+            <!--
+                Publish with:  mvn clean deploy
+                Then go to https://central.sonatype.com → Deployments → Publish
+            -->
+            <plugin>
+                <groupId>org.sonatype.central</groupId>
+                <artifactId>central-publishing-maven-plugin</artifactId>
+                <version>${central-publishing-plugin.version}</version>
+                <extensions>true</extensions>
+                <configuration>
+                    <publishingServerId>central</publishingServerId>
+                    <autoPublish>false</autoPublish>
+                    <waitUntil>uploaded</waitUntil>
+                </configuration>
+            </plugin>
+
+        </plugins>
+    </build>
+</project>
