@@ -55,7 +55,7 @@ No extra repositories. No conditional `if (filter != null)`. No duplicated SQL.
 > **Note:** Quaero is not yet published to Maven Central. Install it locally first:
 >
 > ```bash
-> git clone https://github.com/dementh/quaero-jpa.git
+> git clone https://github.com/dementhius/quaero-jpa.git
 > cd quaero-jpa
 > mvn clean install -DskipTests
 > ```
@@ -64,7 +64,7 @@ Then add it to your project's `pom.xml`:
 
 ```xml
 <dependency>
-    <groupId>io.github.dementh</groupId>
+    <groupId>io.github.dementhius</groupId>
     <artifactId>quaero-jpa</artifactId>
     <version>1.0.0</version>
 </dependency>
