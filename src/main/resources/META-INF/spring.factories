@@ -1,2 +1,4 @@
+# Quaero JPA — Auto-configurations
 org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
-  quaero.config.QuaeroConfiguration
+  quaero.config.QuaeroConfiguration,\
+  quaero.dialect.auto.QuaeroDialectAutoConfiguration

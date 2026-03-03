@@ -1,5 +1,5 @@
 /*
- * Copyright 2026 Ddementhius
+ * Copyright 2026 Dementhius
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,6 +15,8 @@
  */
 package quaero.components.select;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -28,99 +30,144 @@ import javax.persistence.metamodel.EntityType;
 import javax.persistence.metamodel.ManagedType;
 import javax.persistence.metamodel.Metamodel;
 
+import quaero.dialect.core.QuaeroFunctionExpression;
 import quaero.utils.CoercionMode;
 
 /**
- * Calls a native SQL function via cb.function().
+ * Calls a registered SQL function with a list of {@link ISelect} arguments.
  *
- * <p>The {@code returnType} field allows the caller to declare the expected
- * Java return type of the function. Defaults to {@code Object.class} for
- * unknown functions. Well-known string functions (to_char, substring) default
- * to {@code String.class} when no returnType is provided.
+ * <p>
+ * Use the portable {@code quaero_*} function names from
+ * {@link quaero.dialect.core.QuaeroFunctions} to write engine-agnostic queries.
+ *
+ * <h3>Hibernate 5 GROUP BY fix</h3> Hibernate 5 has a bug where
+ * {@link CriteriaBuilder#function} expressions that contain literal arguments
+ * are not reproduced correctly in GROUP BY clauses. This class automatically
+ * uses {@link QuaeroFunctionExpression} which overrides Hibernate's internal
+ * render path so that the full SQL fragment is emitted identically in both
+ * SELECT and GROUP BY.
  */
 public class SelectFunctionObject implements ISelect {
 
-    private List<ISelect> params;
-    private String function;
-    /**
-     * Optional: fully-qualified class name of the expected return type.
-     * e.g. "java.lang.String", "java.lang.Integer".
-     * Defaults to Object.class if null or unresolvable.
-     */
-    private String returnType;
+	private String function;
+	private String returnType;
+	private List<ISelect> params = new ArrayList<>();
 
-    public List<ISelect> getParams() {
-        return params;
-    }
+	private transient Expression<?> cachedExpression;
 
-    public void setParams(final List<ISelect> params) {
-        this.params = params;
-    }
+	@Override
+	public Expression<?> resolve(final CoercionMode mode, final From<?, ?> entity, final CriteriaQuery<?> query,
+			final CriteriaBuilder cb, final Map<String, EntityType<?>> entities,
+			final Map<String, ManagedType<?>> managedTypes) {
 
-    public String getFunction() {
-        return function;
-    }
+		if (params == null || params.isEmpty() || function == null || function.isEmpty()) {
+			return null;
+		}
 
-    public void setFunction(final String function) {
-        this.function = function;
-    }
+		if (cachedExpression != null) {
+			return cachedExpression;
+		}
 
-    public String getReturnType() {
-        return returnType;
-    }
+		final List<Expression<?>> exList = new ArrayList<>();
+		for (final ISelect sel : params) {
+			exList.add(sel.resolve(mode, entity, query, cb, entities, managedTypes));
+		}
+		final Expression<?>[] exArray = exList.toArray(new Expression<?>[0]);
 
-    public void setReturnType(final String returnType) {
-        this.returnType = returnType;
-    }
+		// Determinar clase de retorno y construir expresión.
+		// Usamos QuaeroFunctionExpression para que SELECT, GROUP BY y ORDER BY
+		// emitan exactamente el mismo fragmento SQL (fix bug Hibernate 5 GROUP BY).
+		try {
+			@SuppressWarnings({ "unchecked", "rawtypes" })
+			final Expression<?> qfe = QuaeroFunctionExpression.of(cb, function, (Class) resolveReturnType(), exArray);
+			cachedExpression = qfe;
+		} catch (final IllegalArgumentException e) {
+			// Fallback para proveedores JPA que no sean Hibernate
+			cachedExpression = cb.function(function, resolveReturnType(), exArray);
+		}
+		return cachedExpression;
+	}
 
-    @Override
-    public Expression<?> resolve(final CoercionMode mode,final From<?, ?> entity, final CriteriaQuery<?> query, final CriteriaBuilder cb, final Map<String, EntityType<?>> entities,
-            final Map<String, ManagedType<?>> managedTypes) {
-        if (params == null || params.isEmpty() || function == null || function.isEmpty()) {
-            return null;
-        }
+	private Class<?> resolveReturnType() {
+		if (returnType != null && !returnType.isEmpty()) {
+			try {
+				return Class.forName(returnType);
+			} catch (ClassNotFoundException ignored) {
+			}
+		}
 
-        final Expression<?>[] args = params.stream().map(p -> p.resolve(mode, entity, query, cb, entities, managedTypes)).toArray(Expression[]::new);
+		if (function != null) {
+			final String fn = function.toLowerCase();
 
-        return cb.function(function, resolveReturnType(), args);
-    }
+			if (fn.contains("date_part")
+					|| fn.contains("datepart")
+					|| fn.contains("extract")
+					|| fn.contains("date_diff")
+					|| fn.contains("datediff")
+					|| fn.contains("round")
+					|| fn.contains("trunc_number")
+					|| fn.contains("log")
+					|| fn.contains("instr")
+					|| fn.contains("locate")) {
+				return Double.class;
+			}
 
-    /**
-     * Resolves the Java return type for the function.
-     * Priority: explicit returnType field > well-known function defaults > Object.class
-     */
-    private Class<?> resolveReturnType() {
-        if (returnType != null && !returnType.isEmpty()) {
-            try {
-                return Class.forName(returnType);
-            } catch (ClassNotFoundException ignored) {
-                // fall through to defaults
-            }
-        }
-        // Well-known string functions
-        if (function != null) {
-            switch (function.toLowerCase()) {
-                case "to_char":
-                case "substring":
-                case "upper":
-                case "lower":
-                case "trim":
-                case "replace":
-                    return String.class;
-            }
-        }
-        return Object.class;
-    }
+			if (fn.contains("to_char")
+					|| fn.contains("format_date")
+					|| fn.contains("formatdatetime")
+					|| fn.contains("strftime")
+					|| fn.contains("trunc_date")
+					|| fn.contains("date_add")
+					|| fn.contains("substring")
+					|| fn.contains("lpad")
+					|| fn.contains("rpad")
+					|| fn.contains("initcap")
+					|| fn.contains("replace")
+					|| fn.contains("regexp_replace")) {
+				return String.class;
+			}
+		}
 
-    @Override
-    public Map<String, Join<?, ?>> defineJoin(final Root<?> entity, final CriteriaQuery<?> query, final Metamodel metamodel,
-            final Map<String, Join<?, ?>> joinMaps) {
-        if (params != null) {
-            for (final ISelect param : params) {
-                param.defineJoin(entity, query, metamodel, joinMaps);
-            }
-        }
-        return joinMaps;
-    }
+		// 3 — Último recurso
+		return Object.class;
+	}
 
+	@Override
+	public Map<String, Join<?, ?>> defineJoin(final Root<?> entity,
+			final CriteriaQuery<?> query,
+			final Metamodel metamodel,
+			final Map<String, Join<?, ?>> joinMaps) {
+		final Map<String, Join<?, ?>> joins = new HashMap<>();
+		for (final ISelect val : params) {
+			final Map<String, Join<?, ?>> tmpJoin = val.defineJoin(entity, query, metamodel, joinMaps);
+			if (tmpJoin != null && !tmpJoin.isEmpty()) {
+				joins.putAll(tmpJoin);
+			}
+		}
+		return joins;
+	}
+
+	public String getFunction() {
+		return function;
+	}
+
+	public void setFunction(final String function) {
+		this.function = function;
+	}
+
+	public String getReturnType() {
+		return returnType;
+	}
+
+	public void setReturnType(final String returnType) {
+		this.returnType = returnType;
+	}
+
+	public List<ISelect> getParams() {
+		return params;
+	}
+
+	public void setParams(final List<ISelect> params) {
+		this.params = params;
+	}
 }
