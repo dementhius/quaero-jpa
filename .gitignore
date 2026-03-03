@@ -24,5 +24,12 @@ hs_err_pid*
 replay_pid*
 /target/
 
+# IDE — Eclipse / STS
 .classpath
+.factorypath
+.project
 /.settings/
+
+# IDE — IntelliJ
+.idea/
+*.iml
