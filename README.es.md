@@ -8,6 +8,16 @@
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-2.x-brightgreen)](https://spring.io/projects/spring-boot)
 [![Hibernate](https://img.shields.io/badge/Hibernate-5.x-yellow)](https://hibernate.org/)
 [![License](https://img.shields.io/badge/Licencia-Apache%202.0-blue)](LICENSE)
+[![npm](https://img.shields.io/npm/v/@quaero/query)](https://www.npmjs.com/package/@quaero/query)
+
+---
+
+## Ecosistema
+
+| Paquete | Descripción |
+|---------|-------------|
+| **quaero-jpa** (este) | Backend Java / Spring Boot — ejecuta objetos `Query` mediante JPA Criteria API |
+| **[@quaero/query](https://github.com/dementhius/quaero-query)** | Cliente TypeScript — construye objetos `Query` de forma fluida desde el navegador o Node.js (`npm install @quaero/query`) |
 
 ---
 
@@ -471,7 +481,7 @@ Un product manager ajusta los umbrales desde la interfaz sin intervención del e
 
 ```xml
 <dependency>
-    <groupId>io.github.tuusuario</groupId>
+    <groupId>io.github.dementhius</groupId>
     <artifactId>quaero-jpa</artifactId>
     <version>1.1.0</version>
 </dependency>
@@ -542,30 +552,31 @@ public class SaleController {
 Este único endpoint gestiona cada combinación de query que el frontend pueda construir —
 hoy y en cualquier sprint futuro.
 
-### Paso 3 — Llamarlo desde el frontend (ejemplo Angular)
+### Paso 3 — Llamarlo desde el frontend con `@quaero/query`
+
+Instala el cliente TypeScript oficial:
+
+```bash
+npm install @quaero/query
+```
 
 ```typescript
-const query = {
-  tableName: 'Sale',
-  selects: [
-    { field: { '@type': 'SelectSimple', field: 'id' },         alias: 'saleId'     },
-    { field: { '@type': 'SelectSimple', field: 'finalPrice' }, alias: 'finalPrice' }
-  ],
-  filter: {
-    '@type': 'FilterSimple',
-    field:        { '@type': 'SelectSimple', field: 'status' },
-    operatorType: 'Eq',
-    value:        { '@type': 'SelectValue',  value: 'Completed' }
-  },
-  pageIndex: 0,
-  pageSize:  25
-};
+import { QueryBuilder, Selects } from '@quaero/query';
+
+const query = QueryBuilder.for('Sale')
+  .select(Selects.field('id')).as('saleId')
+  .select(Selects.field('finalPrice')).as('finalPrice')
+  .filterEqual('status', 'Completed')
+  .page(0, 25)
+  .build();
 
 this.http.post<any>('/api/ventas/buscar', query).subscribe(result => {
   this.rows  = result.data;
   this.total = result.total;
 });
 ```
+
+> El builder genera exactamente el JSON plano que Quaero JPA espera. También puedes enviar JSON directamente — consulta la [sección 7](#7-referencia-del-objeto-query) para la referencia completa del objeto `Query`.
 
 ### Paso 4 — O construirlo por código con `QueryBuilder`
 
