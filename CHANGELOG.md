@@ -4,6 +4,18 @@
 
 - chore: bump to 1.1.0-SNAPSHOT
 
+## [1.2.0](https://github.com/dementhius/quaero-jpa/compare/v1.1.0...v1.2.0) (2026-03-05)
+
+
+### Features
+
+* **query:** add Selects factory and ISelect overloads for filter static factories ([1427d2f](https://github.com/dementhius/quaero-jpa/commit/1427d2f35b7a96c76fdbc04fb8904bc06b0e6586))
+
+
+### Documentation
+
+* add @quaero/query ecosystem section and update frontend quick start ([463a5e7](https://github.com/dementhius/quaero-jpa/commit/463a5e7e7b4bed45d2a657706072f32e7d968845))
+
 ## [1.1.0](https://github.com/dementhius/quaero-jpa/compare/v1.0.0...v1.1.0) (2026-03-03)
 
 
