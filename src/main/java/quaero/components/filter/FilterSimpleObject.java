@@ -31,6 +31,7 @@ import javax.persistence.metamodel.ManagedType;
 
 import quaero.components.select.ISelect;
 import quaero.components.select.SelectValueObject;
+import quaero.components.select.Selects;
 import quaero.components.values.FilterOperatorType;
 import quaero.utils.CoercionMode;
 import quaero.utils.ParameterTypeCoercer;
@@ -70,7 +71,7 @@ public class FilterSimpleObject implements IFilter {
 	private String entityAlias;
 
 	// ─────────────────────────────────────────────────────────────────────
-	// Static factories (for programmatic use / fluent builder)
+	// Static factories — field as String (simple field path)
 	// ─────────────────────────────────────────────────────────────────────
 
 	public static FilterSimpleObject equal(final String field, final Object value) {
@@ -121,13 +122,176 @@ public class FilterSimpleObject implements IFilter {
 		return of(field, FilterOperatorType.IS_NOT_NULL, null);
 	}
 
+	public static FilterSimpleObject isEmpty(final String field) {
+		return of(field, FilterOperatorType.IS_EMPTY, null);
+	}
+
+	public static FilterSimpleObject isNotEmpty(final String field) {
+		return of(field, FilterOperatorType.IS_NOT_EMPTY, null);
+	}
+
+	public static FilterSimpleObject equalTrim(final String field, final Object value) {
+		return of(field, FilterOperatorType.EQUAL_TRIM, value);
+	}
+
+	public static FilterSimpleObject notEqualTrim(final String field, final Object value) {
+		return of(field, FilterOperatorType.NOT_EQUAL_TRIM, value);
+	}
+
+	public static FilterSimpleObject likeTrim(final String field, final String value) {
+		return of(field, FilterOperatorType.LIKE_TRIM, value);
+	}
+
+	public static FilterSimpleObject notLikeTrim(final String field, final String value) {
+		return of(field, FilterOperatorType.NOT_LIKE_TRIM, value);
+	}
+
+	public static FilterSimpleObject inTrim(final String field, final List<?> values) {
+		return of(field, FilterOperatorType.IN_TRIM, values);
+	}
+
+	public static FilterSimpleObject notInTrim(final String field, final List<?> values) {
+		return of(field, FilterOperatorType.NOT_IN_TRIM, values);
+	}
+
+	// ─────────────────────────────────────────────────────────────────────
+	// Static factories — field as ISelect expression (e.g. Selects.trim(...))
+	// ─────────────────────────────────────────────────────────────────────
+
+	public static FilterSimpleObject equal(final ISelect field, final Object value) {
+		return of(field, FilterOperatorType.EQUAL, value);
+	}
+
+	/** Field-to-field equality: {@code expr1 = expr2} */
+	public static FilterSimpleObject equal(final ISelect field, final ISelect value) {
+		return of(field, FilterOperatorType.EQUAL, value);
+	}
+
+	public static FilterSimpleObject notEqual(final ISelect field, final Object value) {
+		return of(field, FilterOperatorType.NOT_EQUAL, value);
+	}
+
+	public static FilterSimpleObject notEqual(final ISelect field, final ISelect value) {
+		return of(field, FilterOperatorType.NOT_EQUAL, value);
+	}
+
+	public static FilterSimpleObject like(final ISelect field, final String value) {
+		return of(field, FilterOperatorType.LIKE, value);
+	}
+
+	public static FilterSimpleObject notLike(final ISelect field, final String value) {
+		return of(field, FilterOperatorType.NOT_LIKE, value);
+	}
+
+	public static FilterSimpleObject greaterThan(final ISelect field, final Object value) {
+		return of(field, FilterOperatorType.GREATER_THAN, value);
+	}
+
+	public static FilterSimpleObject greaterThan(final ISelect field, final ISelect value) {
+		return of(field, FilterOperatorType.GREATER_THAN, value);
+	}
+
+	public static FilterSimpleObject greaterThanOrEqual(final ISelect field, final Object value) {
+		return of(field, FilterOperatorType.GREATER_THAN_OR_EQUAL, value);
+	}
+
+	public static FilterSimpleObject greaterThanOrEqual(final ISelect field, final ISelect value) {
+		return of(field, FilterOperatorType.GREATER_THAN_OR_EQUAL, value);
+	}
+
+	public static FilterSimpleObject lessThan(final ISelect field, final Object value) {
+		return of(field, FilterOperatorType.LESS_THAN, value);
+	}
+
+	public static FilterSimpleObject lessThan(final ISelect field, final ISelect value) {
+		return of(field, FilterOperatorType.LESS_THAN, value);
+	}
+
+	public static FilterSimpleObject lessThanOrEqual(final ISelect field, final Object value) {
+		return of(field, FilterOperatorType.LESS_THAN_OR_EQUAL, value);
+	}
+
+	public static FilterSimpleObject lessThanOrEqual(final ISelect field, final ISelect value) {
+		return of(field, FilterOperatorType.LESS_THAN_OR_EQUAL, value);
+	}
+
+	public static FilterSimpleObject in(final ISelect field, final List<?> values) {
+		return of(field, FilterOperatorType.IN, values);
+	}
+
+	public static FilterSimpleObject notIn(final ISelect field, final List<?> values) {
+		return of(field, FilterOperatorType.NOT_IN, values);
+	}
+
+	public static FilterSimpleObject isNull(final ISelect field) {
+		return of(field, FilterOperatorType.IS_NULL, (ISelect) null);
+	}
+
+	public static FilterSimpleObject isNotNull(final ISelect field) {
+		return of(field, FilterOperatorType.IS_NOT_NULL, (ISelect) null);
+	}
+
+	public static FilterSimpleObject isEmpty(final ISelect field) {
+		return of(field, FilterOperatorType.IS_EMPTY, (ISelect) null);
+	}
+
+	public static FilterSimpleObject isNotEmpty(final ISelect field) {
+		return of(field, FilterOperatorType.IS_NOT_EMPTY, (ISelect) null);
+	}
+
+	public static FilterSimpleObject equalTrim(final ISelect field, final Object value) {
+		return of(field, FilterOperatorType.EQUAL_TRIM, value);
+	}
+
+	public static FilterSimpleObject equalTrim(final ISelect field, final ISelect value) {
+		return of(field, FilterOperatorType.EQUAL_TRIM, value);
+	}
+
+	public static FilterSimpleObject notEqualTrim(final ISelect field, final Object value) {
+		return of(field, FilterOperatorType.NOT_EQUAL_TRIM, value);
+	}
+
+	public static FilterSimpleObject notEqualTrim(final ISelect field, final ISelect value) {
+		return of(field, FilterOperatorType.NOT_EQUAL_TRIM, value);
+	}
+
+	public static FilterSimpleObject likeTrim(final ISelect field, final String value) {
+		return of(field, FilterOperatorType.LIKE_TRIM, value);
+	}
+
+	public static FilterSimpleObject notLikeTrim(final ISelect field, final String value) {
+		return of(field, FilterOperatorType.NOT_LIKE_TRIM, value);
+	}
+
+	public static FilterSimpleObject inTrim(final ISelect field, final List<?> values) {
+		return of(field, FilterOperatorType.IN_TRIM, values);
+	}
+
+	public static FilterSimpleObject notInTrim(final ISelect field, final List<?> values) {
+		return of(field, FilterOperatorType.NOT_IN_TRIM, values);
+	}
+
+	// ─────────────────────────────────────────────────────────────────────
+	// Private helpers
+	// ─────────────────────────────────────────────────────────────────────
+
 	private static FilterSimpleObject of(final String fieldPath, final FilterOperatorType type, final Object value) {
+		return of(Selects.field(fieldPath), type, value);
+	}
+
+	private static FilterSimpleObject of(final ISelect field, final FilterOperatorType type, final Object value) {
 		final FilterSimpleObject f = new FilterSimpleObject();
-		final quaero.components.select.SelectSimpleObject sel = new quaero.components.select.SelectSimpleObject();
-		sel.setField(fieldPath);
-		f.field = sel;
+		f.field = field;
 		f.operatorType = type;
 		f.value = new SelectValueObject(value);
+		return f;
+	}
+
+	private static FilterSimpleObject of(final ISelect field, final FilterOperatorType type, final ISelect value) {
+		final FilterSimpleObject f = new FilterSimpleObject();
+		f.field = field;
+		f.operatorType = type;
+		f.value = value;
 		return f;
 	}
 
@@ -136,18 +300,22 @@ public class FilterSimpleObject implements IFilter {
 	// ─────────────────────────────────────────────────────────────────────
 
 	@Override
-	@SuppressWarnings({ "unchecked", "rawtypes" })
+	@SuppressWarnings({ "rawtypes", "unchecked" })
 	public Predicate resolve(final CoercionMode mode, final From<?, ?> entity, final CriteriaQuery<?> query, final CriteriaBuilder cb, final Map<String, EntityType<?>> entities,
             final Map<String, ManagedType<?>> managedTypes) {
 
 		// ── Resolve the field expression ──────────────────────────────────
 		final Expression fieldExpr = field.resolve(mode, entity, query, cb, entities, managedTypes);
 
-		// ── NULL checks — no value needed ─────────────────────────────────
+		// ── NULL / EMPTY checks — no value needed ─────────────────────────
 		if (operatorType == FilterOperatorType.IS_NULL)
 			return cb.isNull(fieldExpr);
 		if (operatorType == FilterOperatorType.IS_NOT_NULL)
 			return cb.isNotNull(fieldExpr);
+		if (operatorType == FilterOperatorType.IS_EMPTY)
+			return cb.isEmpty(fieldExpr);
+		if (operatorType == FilterOperatorType.IS_NOT_EMPTY)
+			return cb.isNotEmpty(fieldExpr);
 
 		// ── Resolve the raw value ─────────────────────────────────────────
 		final Object rawValue = extractRawValue();
@@ -209,6 +377,12 @@ public class FilterSimpleObject implements IFilter {
 		case NOT_LIKE_TRIM:
 			return cb.notLike(cb.upper(cb.trim((Expression<String>) fieldExpr)),
 					cb.upper(cb.trim((Expression<String>) valueExpr)));
+
+		case EQUAL_TRIM:
+			return cb.equal(cb.trim((Expression<String>) fieldExpr), cb.trim((Expression<String>) valueExpr));
+
+		case NOT_EQUAL_TRIM:
+			return cb.notEqual(cb.trim((Expression<String>) fieldExpr), cb.trim((Expression<String>) valueExpr));
 
 		case IN:
 			return buildInPredicate(fieldExpr, rawValue, mode, fieldName, targetType, cb, false);

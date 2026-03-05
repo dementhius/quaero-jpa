@@ -28,6 +28,7 @@ import javax.persistence.metamodel.EntityType;
 import javax.persistence.metamodel.ManagedType;
 
 import quaero.components.select.ISelect;
+import quaero.components.select.Selects;
 import quaero.components.values.FilterOperatorType;
 import quaero.utils.CoercionMode;
 
@@ -39,6 +40,104 @@ public class FilterQueryObject implements IFilter {
     private ISelect queryField;
     private String queryEntity;
     private IFilter queryFilter;
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Static factories
+    // ─────────────────────────────────────────────────────────────────────
+
+    public static FilterQueryObject queryEqual(final String field, final String entity, final ISelect queryField, final IFilter queryFilter) {
+        return of(Selects.field(field), FilterOperatorType.EQUAL, entity, queryField, queryFilter);
+    }
+
+    public static FilterQueryObject queryEqual(final ISelect field, final String entity, final ISelect queryField, final IFilter queryFilter) {
+        return of(field, FilterOperatorType.EQUAL, entity, queryField, queryFilter);
+    }
+
+    public static FilterQueryObject queryNotEqual(final String field, final String entity, final ISelect queryField, final IFilter queryFilter) {
+        return of(Selects.field(field), FilterOperatorType.NOT_EQUAL, entity, queryField, queryFilter);
+    }
+
+    public static FilterQueryObject queryNotEqual(final ISelect field, final String entity, final ISelect queryField, final IFilter queryFilter) {
+        return of(field, FilterOperatorType.NOT_EQUAL, entity, queryField, queryFilter);
+    }
+
+    public static FilterQueryObject queryIn(final String field, final String entity, final ISelect queryField, final IFilter queryFilter) {
+        return of(Selects.field(field), FilterOperatorType.IN, entity, queryField, queryFilter);
+    }
+
+    public static FilterQueryObject queryIn(final ISelect field, final String entity, final ISelect queryField, final IFilter queryFilter) {
+        return of(field, FilterOperatorType.IN, entity, queryField, queryFilter);
+    }
+
+    public static FilterQueryObject queryNotIn(final String field, final String entity, final ISelect queryField, final IFilter queryFilter) {
+        return of(Selects.field(field), FilterOperatorType.NOT_IN, entity, queryField, queryFilter);
+    }
+
+    public static FilterQueryObject queryNotIn(final ISelect field, final String entity, final ISelect queryField, final IFilter queryFilter) {
+        return of(field, FilterOperatorType.NOT_IN, entity, queryField, queryFilter);
+    }
+
+    public static FilterQueryObject queryGreaterThan(final String field, final String entity, final ISelect queryField, final IFilter queryFilter) {
+        return of(Selects.field(field), FilterOperatorType.GREATER_THAN, entity, queryField, queryFilter);
+    }
+
+    public static FilterQueryObject queryGreaterThan(final ISelect field, final String entity, final ISelect queryField, final IFilter queryFilter) {
+        return of(field, FilterOperatorType.GREATER_THAN, entity, queryField, queryFilter);
+    }
+
+    public static FilterQueryObject queryGreaterThanOrEqual(final String field, final String entity, final ISelect queryField, final IFilter queryFilter) {
+        return of(Selects.field(field), FilterOperatorType.GREATER_THAN_OR_EQUAL, entity, queryField, queryFilter);
+    }
+
+    public static FilterQueryObject queryGreaterThanOrEqual(final ISelect field, final String entity, final ISelect queryField, final IFilter queryFilter) {
+        return of(field, FilterOperatorType.GREATER_THAN_OR_EQUAL, entity, queryField, queryFilter);
+    }
+
+    public static FilterQueryObject queryLessThan(final String field, final String entity, final ISelect queryField, final IFilter queryFilter) {
+        return of(Selects.field(field), FilterOperatorType.LESS_THAN, entity, queryField, queryFilter);
+    }
+
+    public static FilterQueryObject queryLessThan(final ISelect field, final String entity, final ISelect queryField, final IFilter queryFilter) {
+        return of(field, FilterOperatorType.LESS_THAN, entity, queryField, queryFilter);
+    }
+
+    public static FilterQueryObject queryLessThanOrEqual(final String field, final String entity, final ISelect queryField, final IFilter queryFilter) {
+        return of(Selects.field(field), FilterOperatorType.LESS_THAN_OR_EQUAL, entity, queryField, queryFilter);
+    }
+
+    public static FilterQueryObject queryLessThanOrEqual(final ISelect field, final String entity, final ISelect queryField, final IFilter queryFilter) {
+        return of(field, FilterOperatorType.LESS_THAN_OR_EQUAL, entity, queryField, queryFilter);
+    }
+
+    public static FilterQueryObject queryLike(final String field, final String entity, final ISelect queryField, final IFilter queryFilter) {
+        return of(Selects.field(field), FilterOperatorType.LIKE, entity, queryField, queryFilter);
+    }
+
+    public static FilterQueryObject queryLike(final ISelect field, final String entity, final ISelect queryField, final IFilter queryFilter) {
+        return of(field, FilterOperatorType.LIKE, entity, queryField, queryFilter);
+    }
+
+    public static FilterQueryObject queryNotLike(final String field, final String entity, final ISelect queryField, final IFilter queryFilter) {
+        return of(Selects.field(field), FilterOperatorType.NOT_LIKE, entity, queryField, queryFilter);
+    }
+
+    public static FilterQueryObject queryNotLike(final ISelect field, final String entity, final ISelect queryField, final IFilter queryFilter) {
+        return of(field, FilterOperatorType.NOT_LIKE, entity, queryField, queryFilter);
+    }
+
+    private static FilterQueryObject of(final ISelect field, final FilterOperatorType op, final String entity, final ISelect queryField, final IFilter queryFilter) {
+        final FilterQueryObject f = new FilterQueryObject();
+        f.field = field;
+        f.operatorType = op;
+        f.queryEntity = entity;
+        f.queryField = queryField;
+        f.queryFilter = queryFilter;
+        return f;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Getters and setters
+    // ─────────────────────────────────────────────────────────────────────
 
     public ISelect getField() {
         return field;
