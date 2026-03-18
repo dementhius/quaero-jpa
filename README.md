@@ -108,36 +108,58 @@ nested map conversion. Pick the one that fits the context. Use both in the same 
 
 ## 2. How it compares
 
+### Where Quaero has an advantage
+
 | Capability | Pure JPA Criteria | Spring Data Specs | QueryDSL | jOOQ | **Quaero** |
 |---|:---:|:---:|:---:|:---:|:---:|
 | Frontend drives query at runtime — no backend changes | ❌ | ❌ | ❌ | ❌ | ✅ JSON mode |
 | Dynamic filters from JSON — zero new code per combo | ❌ | ❌ | ❌ | ❌ | ✅ |
-| Fluent Java builder — no Criteria API boilerplate | ❌ | ❌ | ⚠️ verbose | ⚠️ verbose | ✅ QueryBuilder |
 | One API for both frontend-driven and server-side queries | ❌ | ❌ | ❌ | ❌ | ✅ |
-| Recursive AND / OR nesting | ✅ verbose | ⚠️ limited | ✅ verbose | ✅ verbose | ✅ declarative |
-| Field-to-field comparisons in filters | ✅ verbose | ❌ | ✅ | ✅ | ✅ |
-| Correlated subqueries in filters | ✅ verbose | ❌ | ⚠️ | ✅ | ✅ |
-| GROUP BY on SQL functions with literals | ⚠️ **bug H5** | ⚠️ **bug H5** | ⚠️ **bug H5** | ✅ | ✅ **fixed** |
+| Fluent Java builder — no Criteria API boilerplate | ❌ | ❌ | ⚠️ verbose | ⚠️ verbose | ✅ |
+| GROUP BY on SQL functions — Hibernate 5 bug fixed | ⚠️ bug | ⚠️ bug | ⚠️ bug | ✅ | ✅ patched |
 | Portable functions across DB engines | ❌ | ❌ | ❌ | ✅ | ✅ |
 | Auto-detect SQL engine at startup | ❌ | ❌ | ❌ | ✅ | ✅ |
 | Per-request type coercion (STRICT / LENIENT) | ❌ | ❌ | ❌ | ❌ | ✅ |
 | Tuple → nested JSON automatically | ❌ | ❌ | ❌ | ⚠️ | ✅ |
-| Works with existing JPA entities as-is | ✅ | ✅ | ✅ | ⚠️ codegen | ✅ |
 | No code generation step | ✅ | ✅ | ❌ | ❌ | ✅ |
-| Java 8 / Spring Boot 2.x compatible | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Works with existing JPA entities as-is | ✅ | ✅ | ✅ | ⚠️ codegen | ✅ |
+
+### Where jOOQ and QueryDSL are genuinely better
+
+| Capability | QueryDSL | jOOQ | **Quaero** |
+|---|:---:|:---:|:---:|
+| Compile-time type safety for field names | ✅ | ✅ | ❌ strings — runtime errors |
+| IDE autocompletion for entity fields | ✅ | ✅ | ❌ |
+| Window functions (RANK, LEAD, LAG, PARTITION BY) | ⚠️ limited | ✅ | ❌ |
+| CTE / WITH queries | ❌ | ✅ | ❌ |
+| UNION / INTERSECT / EXCEPT | ⚠️ | ✅ | ❌ |
+| INSERT / UPDATE / DELETE | ✅ | ✅ | ❌ SELECT only |
+| Full SQL escape hatch (inline raw SQL) | ⚠️ | ✅ | ❌ |
+| Spring Boot 3.x / Jakarta support | ✅ | ✅ | ⚠️ roadmap |
+| Community size and long-term ecosystem | ✅ | ✅ | ❌ early stage |
 
 **The honest comparison:**
 
-jOOQ and QueryDSL are excellent tools when a developer sits down to write a specific,
-handcrafted query. They give you type-safety, IDE completion, and full SQL control —
-and QueryDSL's builder is genuinely good. But both require you to know the query shape
-at development time. Quaero's `QueryBuilder` covers the same server-side Java use case
-with far less ceremony and zero codegen, while also solving the problem they cannot:
-**when the user — not the developer — decides what to query, at runtime, through a UI.**
+**Where Quaero wins:** when a user — not a developer — must decide what to query at
+runtime through a UI. No other tool on this list solves that without custom backend
+code per query shape. For server-side use, `QueryBuilder` also removes Criteria API
+boilerplate without any code-generation step.
 
-Spring Data Specifications are the closest built-in alternative, but they still require
-a Java class per filter combination, don't handle JSON deserialization of arbitrary
-filter trees, can't do GROUP BY on functions, and have no type coercion layer.
+**Where jOOQ and QueryDSL are genuinely better:** compile-time type safety and IDE
+autocompletion for field names — a typo in a Quaero query is a runtime error, not a
+compiler error. jOOQ in particular offers first-class window functions, CTEs, full
+UNION support, and write operations. If you need the full expressive power of SQL and
+your queries are developer-written at design time, jOOQ is the right tool. QueryDSL's
+builder is also genuinely good and type-safe, with lower ceremony than jOOQ.
+
+**Where Quaero is not the right choice:** your queries are fixed and written by
+developers; you need window functions, CTEs, or write operations; you are already on
+Spring Boot 3.x (Jakarta support is on the roadmap); or compile-time safety is a hard
+requirement.
+
+**On ecosystem maturity:** jOOQ and QueryDSL have large communities, years of
+StackOverflow coverage, and commercial support options. Quaero is an early-stage
+library — evaluate accordingly for production use.
 
 ---
 
