@@ -19,7 +19,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import javax.persistence.EntityManager;
@@ -46,14 +45,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Component;
 
-import quaero.components.filter.IFilter;
 import quaero.query.Query;
 import quaero.query.QueryJoinObject;
 import quaero.query.QueryJoinParamsObject;
 import quaero.query.QueryJoinTypesObject;
 import quaero.query.QueryMultiJoinObject;
-import quaero.query.QueryOrderObject;
 import quaero.query.QuerySelectObject;
+import quaero.security.QuaeroSecurityValidator;
 import quaero.utils.CoercionMode;
 import quaero.utils.QueryUtils;
 
@@ -70,8 +68,17 @@ public class QueryExecutor {
     public Map<String, ManagedType<?>> managedTypes;
     @PersistenceContext
     private EntityManager em;
+    @Autowired
+    private QuaeroSecurityValidator securityValidator;
+    @Autowired
+    private QuaeroPredicateBuilder predicateBuilder;
+    @Autowired
+    private QuaeroSelectionBuilder selectionBuilder;
+    @Autowired
+    private QuaeroOrderBuilder orderBuilder;
 
     public TypedQuery<Tuple> doQuery(final Query queryObj) {
+        securityValidator.validate(queryObj);
         try {
             return buildQuery(em, queryObj);
         } finally {
@@ -90,9 +97,9 @@ public class QueryExecutor {
         final CriteriaQuery<Tuple> tupleQu = cb.createTupleQuery();
 
         final String alias = queryObj.getTableAlias();
-        final Root<?> root = (Root<?>) tupleQu.from(tableEntity).alias((alias != null && !alias.trim().isEmpty()) ? alias.trim() : queryObj.getTableName());
-        
-        // Coercion
+        final Root<?> root = (Root<?>) tupleQu.from(tableEntity).alias(
+                (alias != null && !alias.trim().isEmpty()) ? alias.trim() : queryObj.getTableName());
+
         final CoercionMode mode = queryObj.getCoercionMode();
 
         // Map of all roots (main + joined), keyed by table name
@@ -100,14 +107,8 @@ public class QueryExecutor {
         rootMap.put(queryObj.getTableName(), root);
 
         // ── Pre-build joins from paramJoinTypes ───────────────────────────────
-        final Map<String, Join<?, ?>> joinMaps = buildParamJoinTypes(em.getMetamodel(), root, queryObj.getParamJoinTypes());
-
-        // ── Define joins from selects ───────────────────
-        if (queryObj.getSelects() != null) {
-            for (final QuerySelectObject select : queryObj.getSelects()) {
-                fillJoinFromSelect(em.getMetamodel(), root, tupleQu, select, joinMaps);
-            }
-        }
+        final Map<String, Join<?, ?>> joinMaps = buildParamJoinTypes(
+                em.getMetamodel(), root, queryObj.getParamJoinTypes());
 
         // ── Accumulators ─────────────────────────────────────────────────────
         final List<Selection<?>> selections = new ArrayList<>();
@@ -118,8 +119,9 @@ public class QueryExecutor {
         final List<From<?, ?>> joinRoots = new ArrayList<>();
         if (queryObj.getDynamicJoins() != null) {
             for (final QueryJoinObject joinObj : queryObj.getDynamicJoins()) {
-                if (joinObj.getJoinParamTuples() == null || joinObj.getJoinParamTuples().length == 0)
+                if (joinObj.getJoinParamTuples() == null || joinObj.getJoinParamTuples().length == 0) {
                     continue;
+                }
 
                 final From<?, ?> mainRoot = rootMap.get(joinObj.getMainTableName());
                 if (mainRoot == null) {
@@ -131,7 +133,8 @@ public class QueryExecutor {
                 joinRoots.add(joinRoot);
 
                 wherePr = andPredicate(cb, wherePr, buildJoinPredicate(mode, joinObj, joinRoot, mainRoot, tupleQu, cb));
-                wherePr = andPredicate(cb, wherePr, buildWherePredicate(mode, joinObj.getJoinFilter(), joinRoot, tupleQu, cb));
+                wherePr = andPredicate(cb, wherePr,
+                        predicateBuilder.build(mode, joinObj.getJoinFilter(), joinRoot, tupleQu, cb));
 
                 collectSelections(mode, joinObj.getJoinSelects(), joinRoot, tupleQu, cb, selections, groupByExps);
             }
@@ -141,41 +144,38 @@ public class QueryExecutor {
         final List<From<?, ?>> multiJoinRoots = new ArrayList<>();
         if (queryObj.getDynamicJoinsMultiple() != null) {
             for (final QueryMultiJoinObject multiJoin : queryObj.getDynamicJoinsMultiple()) {
-                if (multiJoin.getJoinParamTuples() == null || multiJoin.getJoinParamTuples().length == 0)
+                if (multiJoin.getJoinParamTuples() == null || multiJoin.getJoinParamTuples().length == 0) {
                     continue;
+                }
 
                 final From<?, ?> joinRoot = createJoinRoot(tupleQu, multiJoin.getJoinTableName(), multiJoin.getJoinTableAlias());
                 rootMap.put(multiJoin.getJoinTableName(), joinRoot);
                 multiJoinRoots.add(joinRoot);
 
                 wherePr = andPredicate(cb, wherePr, buildMultiJoinPredicate(mode, multiJoin, joinRoot, rootMap, tupleQu, cb));
-                wherePr = andPredicate(cb, wherePr, buildWherePredicate(mode, multiJoin.getJoinFilter(), joinRoot, tupleQu, cb));
+                wherePr = andPredicate(cb, wherePr,
+                        predicateBuilder.build(mode, multiJoin.getJoinFilter(), joinRoot, tupleQu, cb));
 
                 collectSelections(mode, multiJoin.getJoinSelects(), joinRoot, tupleQu, cb, selections, groupByExps);
             }
         }
 
-        // ── Main selects ────────────────────────
+        // ── Main selects (joins pre-built inside selectionBuilder) ────────────
         if (queryObj.getSelects() != null) {
-            for (final QuerySelectObject select : queryObj.getSelects()) {
-                final Selection<?> sel = select.resolve(mode, root, tupleQu, cb, entities, managedTypes);
-                if (sel != null)
-                    selections.add(sel);
-
-                final Expression<?> grp = select.resolveGroupBy(mode, root, tupleQu, cb, entities, managedTypes);
-                if (grp != null)
-                    groupByExps.add(grp);
-            }
+            selections.addAll(selectionBuilder.buildSelections(mode, queryObj.getSelects(), root, tupleQu, cb, joinMaps));
+            groupByExps.addAll(selectionBuilder.buildGroupBy(mode, queryObj.getSelects(), root, tupleQu, cb));
         }
 
         // ── Main WHERE ────────────────────────────────────────────────────────
-        wherePr = andPredicate(cb, wherePr, buildWherePredicate(mode, queryObj.getFilter(), root, tupleQu, cb));
+        wherePr = andPredicate(cb, wherePr, predicateBuilder.build(mode, queryObj.getFilter(), root, tupleQu, cb));
 
         // ── Assemble CriteriaQuery ────────────────────────────────────────────
-        if (selections.isEmpty())
+        if (selections.isEmpty()) {
             return null;
+        }
 
-        final CriteriaQuery<Tuple> selectQuery = selections.size() == 1 ? tupleQu.select(cb.tuple(selections.toArray(new Selection[0])))
+        final CriteriaQuery<Tuple> selectQuery = selections.size() == 1
+                ? tupleQu.select(cb.tuple(selections.toArray(new Selection[0])))
                 : tupleQu.multiselect(selections);
 
         if (Boolean.TRUE.equals(queryObj.getDistinctResults())) {
@@ -190,51 +190,14 @@ public class QueryExecutor {
 
         // ── ORDER BY ──────────────────────────────────────────────────────────
         if (queryObj.getOrders() != null && !queryObj.getOrders().isEmpty()) {
-            final List<From<?, ?>> allRoots = buildRootSearchOrder(root, joinRoots, multiJoinRoots);
-            final List<Order> orders = resolveOrders(mode, queryObj.getOrders(), allRoots, tupleQu, cb);
-            if (!orders.isEmpty())
+            final List<From<?, ?>> allRoots = buildAllRoots(root, joinRoots, multiJoinRoots);
+            final List<Order> orders = orderBuilder.build(mode, queryObj.getOrders(), allRoots, tupleQu, cb);
+            if (!orders.isEmpty()) {
                 selectQuery.orderBy(orders);
+            }
         }
 
         return em.createQuery(selectQuery);
-    }
-
-    // =========================================================================
-    // ORDER RESOLUTION
-    // =========================================================================
-
-    private List<Order> resolveOrders(final CoercionMode mode, final List<QueryOrderObject> orderObjects, final List<From<?, ?>> allRoots, final CriteriaQuery<Tuple> query,
-            final CriteriaBuilder cb) {
-        final List<Order> orders = new ArrayList<>();
-
-        for (final QueryOrderObject orderObj : orderObjects) {
-            Order resolved = null;
-
-            for (final From<?, ?> candidate : allRoots) {
-                try {
-                    resolved = orderObj.resolve(mode, candidate, query, cb, entities, managedTypes);
-                    if (resolved != null)
-                        break;
-                } catch (Exception ex) {
-                    logger.log(Level.FINE, "Order field not found in root " + candidate.getJavaType().getSimpleName() + ", trying next", ex);
-                }
-            }
-
-            if (resolved != null) {
-                orders.add(resolved);
-            } else {
-                logger.warning("Could not resolve order field in any root: " + orderObj.getField());
-            }
-        }
-        return orders;
-    }
-
-    private List<From<?, ?>> buildRootSearchOrder(final From<?, ?> root, final List<From<?, ?>> joinRoots, final List<From<?, ?>> multiJoinRoots) {
-        final List<From<?, ?>> all = new ArrayList<>();
-        all.add(root);
-        all.addAll(joinRoots);
-        all.addAll(multiJoinRoots);
-        return all;
     }
 
     // =========================================================================
@@ -253,7 +216,8 @@ public class QueryExecutor {
         return joinRoot;
     }
 
-    private Predicate buildJoinPredicate(final CoercionMode mode, final QueryJoinObject joinObj, final From<?, ?> joinRoot, final From<?, ?> mainRoot, final CriteriaQuery<Tuple> query,
+    private Predicate buildJoinPredicate(final CoercionMode mode, final QueryJoinObject joinObj,
+            final From<?, ?> joinRoot, final From<?, ?> mainRoot, final CriteriaQuery<Tuple> query,
             final CriteriaBuilder cb) {
         Predicate result = null;
         for (final QueryJoinParamsObject params : joinObj.getJoinParamTuples()) {
@@ -264,8 +228,9 @@ public class QueryExecutor {
         return result;
     }
 
-    private Predicate buildMultiJoinPredicate(final CoercionMode mode, final QueryMultiJoinObject multiJoin, final From<?, ?> joinRoot, final Map<String, From<?, ?>> rootMap,
-            final CriteriaQuery<Tuple> query, final CriteriaBuilder cb) {
+    private Predicate buildMultiJoinPredicate(final CoercionMode mode, final QueryMultiJoinObject multiJoin,
+            final From<?, ?> joinRoot, final Map<String, From<?, ?>> rootMap, final CriteriaQuery<Tuple> query,
+            final CriteriaBuilder cb) {
         Predicate result = null;
         for (final QueryJoinParamsObject params : multiJoin.getJoinParamTuples()) {
             final From<?, ?> mainRoot = rootMap.get(params.getMainTableName());
@@ -279,17 +244,20 @@ public class QueryExecutor {
         return result;
     }
 
-    private Map<String, Join<?, ?>> buildParamJoinTypes(final Metamodel metamodel, final Root<?> root, final List<QueryJoinTypesObject> paramJoinTypes) {
+    private Map<String, Join<?, ?>> buildParamJoinTypes(final Metamodel metamodel, final Root<?> root,
+            final List<QueryJoinTypesObject> paramJoinTypes) {
         final Map<String, Join<?, ?>> joinMaps = new HashMap<>();
-        if (paramJoinTypes == null || paramJoinTypes.isEmpty())
+        if (paramJoinTypes == null || paramJoinTypes.isEmpty()) {
             return joinMaps;
+        }
 
         for (final QueryJoinTypesObject qjt : paramJoinTypes) {
             final String param = qjt.getParam();
             final List<QueryJoinTypesObject.QuaeroJoinType> joinTypes = qjt.getJoinType();
 
-            if (param == null || param.isEmpty() || joinTypes == null || joinTypes.isEmpty())
+            if (param == null || param.isEmpty() || joinTypes == null || joinTypes.isEmpty()) {
                 continue;
+            }
 
             if (param.contains(QueryUtils.ENTITY_FIELD_SEPARATOR)) {
                 buildNestedJoin(metamodel, root, param, joinTypes, joinMaps);
@@ -300,8 +268,8 @@ public class QueryExecutor {
         return joinMaps;
     }
 
-    private void buildNestedJoin(final Metamodel metamodel, final Root<?> root, final String param, final List<QueryJoinTypesObject.QuaeroJoinType> joinTypes,
-            final Map<String, Join<?, ?>> joinMaps) {
+    private void buildNestedJoin(final Metamodel metamodel, final Root<?> root, final String param,
+            final List<QueryJoinTypesObject.QuaeroJoinType> joinTypes, final Map<String, Join<?, ?>> joinMaps) {
         final String[] parts = StringUtils.splitByWholeSeparator(param, QueryUtils.ENTITY_FIELD_SEPARATOR);
         String prevParam = null;
         Class<?> prevEntity = null;
@@ -310,35 +278,32 @@ public class QueryExecutor {
         for (int i = 0; i < parts.length; i++) {
             currentLevel = currentLevel.isEmpty() ? parts[i] : currentLevel + QueryUtils.ENTITY_FIELD_SEPARATOR + parts[i];
 
-            if (joinTypes.size() <= i)
+            if (joinTypes.size() <= i) {
                 break;
+            }
 
             final JoinType joinType = QueryUtils.getJoinType(joinTypes.get(i));
-            final Attribute<?, ?> attribute = prevParam == null ? root.getModel().getAttribute(parts[i]) : metamodel.entity(prevEntity).getAttribute(parts[i]);
+            final Attribute<?, ?> attribute = prevParam == null
+                    ? root.getModel().getAttribute(parts[i])
+                    : metamodel.entity(prevEntity).getAttribute(parts[i]);
             prevEntity = attribute.getJavaType();
 
             if (!joinMaps.containsKey(currentLevel)) {
                 if (QueryUtils.isJoinParameter(attribute)) {
-                    final Join<Object, Object> join = prevParam == null ? root.join(parts[i], joinType) : joinMaps.get(prevParam).join(parts[i], joinType);
+                    final Join<Object, Object> join = prevParam == null
+                            ? root.join(parts[i], joinType)
+                            : joinMaps.get(prevParam).join(parts[i], joinType);
                     joinMaps.put(currentLevel, join);
                 }
             } else {
                 final Join<?, ?> existing = joinMaps.get(currentLevel);
                 if (!existing.getJoinType().equals(joinType)) {
-                    logger.warning("buildNestedJoin. Cannot override join type for '" + currentLevel + "' from " + existing.getJoinType() + " to " + joinType);
+                    logger.warning("buildNestedJoin. Cannot override join type for '" + currentLevel
+                            + "' from " + existing.getJoinType() + " to " + joinType);
                 }
             }
             prevParam = currentLevel;
         }
-    }
-
-    private void fillJoinFromSelect(final Metamodel metamodel, final Root<?> root, final CriteriaQuery<?> query, final QuerySelectObject select,
-            final Map<String, Join<?, ?>> joinMaps) {
-        if (select == null)
-            return;
-        final Map<String, Join<?, ?>> tmp = select.defineJoin(root, query, metamodel, joinMaps);
-        if (tmp != null)
-            joinMaps.putAll(tmp);
     }
 
     // =========================================================================
@@ -347,31 +312,44 @@ public class QueryExecutor {
 
     /** Null-safe AND accumulator — avoids the repetitive if/else pattern. */
     private Predicate andPredicate(final CriteriaBuilder cb, final Predicate existing, final Predicate next) {
-        if (next == null)
+        if (next == null) {
             return existing;
-        if (existing == null)
+        }
+        if (existing == null) {
             return next;
+        }
         return cb.and(existing, next);
     }
 
-    private Predicate buildWherePredicate(final CoercionMode mode, final IFilter filter, final From<?, ?> from, final CriteriaQuery<?> query, final CriteriaBuilder cb) {
-        if (filter == null)
-            return null;
-        return filter.resolve(mode, from, query, cb, entities, managedTypes);
+    private List<From<?, ?>> buildAllRoots(final From<?, ?> root, final List<From<?, ?>> joinRoots,
+            final List<From<?, ?>> multiJoinRoots) {
+        final List<From<?, ?>> all = new ArrayList<>();
+        all.add(root);
+        all.addAll(joinRoots);
+        all.addAll(multiJoinRoots);
+        return all;
     }
 
-    private void collectSelections(final CoercionMode mode, final QuerySelectObject[] selectObjects, final From<?, ?> from, final CriteriaQuery<Tuple> query,
-            final CriteriaBuilder cb, final List<Selection<?>> selections, final List<Expression<?>> groupByExps) {
-        if (selectObjects == null)
+    /**
+     * Resolve join-level selects ({@code QuerySelectObject[]}) against a join root.
+     * This path does <em>not</em> pre-build join types because join roots are
+     * already fully resolved by the time their selects are collected.
+     */
+    private void collectSelections(final CoercionMode mode, final QuerySelectObject[] selectObjects,
+            final From<?, ?> from, final CriteriaQuery<Tuple> query, final CriteriaBuilder cb,
+            final List<Selection<?>> selections, final List<Expression<?>> groupByExps) {
+        if (selectObjects == null) {
             return;
+        }
         for (final QuerySelectObject sel : selectObjects) {
             final Selection<?> s = sel.resolve(mode, from, query, cb, entities, managedTypes);
-            if (s != null)
+            if (s != null) {
                 selections.add(s);
-
+            }
             final Expression<?> g = sel.resolveGroupBy(mode, from, query, cb, entities, managedTypes);
-            if (g != null)
+            if (g != null) {
                 groupByExps.add(g);
+            }
         }
     }
 }

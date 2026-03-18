@@ -28,6 +28,10 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import quaero.QueryExecutor;
+import quaero.QuaeroOrderBuilder;
+import quaero.QuaeroPredicateBuilder;
+import quaero.QuaeroSelectionBuilder;
+import quaero.security.QuaeroSecurityValidator;
 
 @Configuration
 public class QuaeroConfiguration {
@@ -36,7 +40,7 @@ public class QuaeroConfiguration {
     private EntityManagerFactory factory;
 
     @Bean
-    @ConditionalOnMissingBean
+    @ConditionalOnMissingBean(name = "entities")
     public Map<String, EntityType<?>> entities() {
         final Map<String, EntityType<?>> map = new HashMap<>();
         for (EntityType<?> ent : factory.getMetamodel().getEntities()) {
@@ -46,7 +50,7 @@ public class QuaeroConfiguration {
     }
 
     @Bean
-    @ConditionalOnMissingBean
+    @ConditionalOnMissingBean(name = "managedTypes")
     public Map<String, ManagedType<?>> managedTypes() {
         final Map<String, ManagedType<?>> map = new HashMap<>();
         for (ManagedType<?> type : factory.getMetamodel().getManagedTypes()) {
@@ -61,5 +65,29 @@ public class QuaeroConfiguration {
     @ConditionalOnMissingBean
     public QueryExecutor queryExecutor() {
         return new QueryExecutor();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public QuaeroPredicateBuilder quaeroPredicateBuilder() {
+        return new QuaeroPredicateBuilder();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public QuaeroSelectionBuilder quaeroSelectionBuilder() {
+        return new QuaeroSelectionBuilder();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public QuaeroOrderBuilder quaeroOrderBuilder() {
+        return new QuaeroOrderBuilder();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public QuaeroSecurityValidator quaeroSecurityValidator() {
+        return new QuaeroSecurityValidator();
     }
 }
