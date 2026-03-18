@@ -36,9 +36,10 @@
 11. [Select examples](#11-select-examples)
 12. [Available operators](#12-available-operators)
 13. [Tuple → nested Map](#13-tuple--nested-map)
-14. [Demo app](#14-demo-app)
-15. [Compatibility](#15-compatibility)
-16. [License](#16-license)
+14. [Security](#14-security)
+15. [Demo app](#15-demo-app)
+16. [Compatibility](#16-compatibility)
+17. [License](#17-license)
 
 ---
 
@@ -83,7 +84,7 @@ boilerplate, no `if (param != null)` chains, no manual join wiring.
 Query q = QueryBuilder.builder("Sale")
     .select("id").as("saleId")
     .select("finalPrice").as("revenue").sum()
-    .select("vehicle.trim.model.brand.name", "Inner","Inner","Inner","Inner").as("brand")
+    .select("vehicle.trim.model.brand.name", "INNER","INNER","INNER","INNER").as("brand")
     .filterEqual("vehicle.powertrain.fuelType", "Electric")
     .filterBetween("finalPrice", 20000, 80000)
     .orderDesc("finalPrice")
@@ -192,7 +193,7 @@ Every new filter means a new parameter, a new `if` block, a new test, a deploy.
 Query q = QueryBuilder.builder("Sale")
     .select("id").as("saleId")
     .select("finalPrice").as("finalPrice")
-    .select("vehicle.trim.model.brand.name", "Inner","Inner","Inner","Inner").as("brand")
+    .select("vehicle.trim.model.brand.name", "INNER","INNER","INNER","INNER").as("brand")
     .filterAnd(f -> f
         .filterEqual("vehicle.trim.model.brand.name", "Toyota")
         .filterEqual("vehicle.powertrain.fuelType", "Electric"))
@@ -529,6 +530,8 @@ public class QuaeroConfiguration {
 }
 ```
 
+> **Note:** Quaero registers these beans automatically via `spring.factories` — the configuration above is only needed if you want to customise them. If you do provide your own beans, annotate them with `@ConditionalOnMissingBean(name = "entities")` and `@ConditionalOnMissingBean(name = "managedTypes")` instead of the plain `@ConditionalOnMissingBean`, to avoid false matches with Spring's built-in `systemProperties` / `systemEnvironment` beans (both of type `Map`).
+
 ### Step 2 — One universal endpoint
 
 ```java
@@ -582,12 +585,17 @@ Query q = QueryBuilder.builder("Sale")
     .coercionMode(CoercionMode.LENIENT)
     .select("id").as("saleId")
     .select("finalPrice").as("finalPrice")
-    .select("vehicle.trim.model.brand.name", "Inner","Inner","Inner","Inner").as("brand")
+    .select("vehicle.trim.model.brand.name", "INNER","INNER","INNER","INNER").as("brand")
     .filterEqual("vehicle.powertrain.fuelType", "Electric")
     .orderDesc("finalPrice")
     .page(0, 20)
     .build();
 ```
+
+**QueryBuilder tips:**
+
+- **`filterIn` with `SelectStep`:** when chaining from `.select().as()`, `filterIn` accepts `Object...` varargs — pass individual values: `.filterIn("field", "A", "B")`. Passing a `List` wraps it in an outer collection and causes a runtime type error. To pass a `List`, call `filter(FilterSimpleObject.in("field", myList))` instead.
+- **Join type names:** `QueryBuilder.select(field, joinTypes...)` resolves type strings via `QuaeroJoinType.valueOf()` — use uppercase: `"INNER"`, `"LEFT"`, `"RIGHT"`, `"CROSS"`. In JSON `joinTypes` arrays, use the display codes: `"Inner"`, `"Left"`, `"Right"`, `"Cross"`.
 
 ---
 
@@ -1087,7 +1095,103 @@ List<Map<String, Object>> result = QueryUtils.tupleToMapList(typedQuery.getResul
 
 ---
 
-## 14. Demo app
+## 14. Security
+
+Quaero's security validator controls which JPA entities and fields can be
+referenced in queries received through the universal endpoint. Two complementary
+approaches are available — pick one or combine them freely.
+
+Validation activates automatically as soon as at least one entity or configurer
+is registered. If nothing is configured, all queries pass through unchanged
+(backwards-compatible behaviour).
+
+---
+
+### Option A — `@QuaeroExposed` annotations
+
+Place `@QuaeroExposed` on the entity class to make it accessible. Optionally
+annotate individual fields to restrict which ones are reachable:
+
+```java
+import quaero.security.QuaeroExposed;
+
+// All fields accessible
+@Entity
+@QuaeroExposed
+public class Product { ... }
+
+// Only 'id', 'name', and 'finalPrice' accessible; 'internalNotes' is blocked
+@Entity
+@QuaeroExposed
+public class Sale {
+    @QuaeroExposed private Long id;
+    @QuaeroExposed private String name;
+    @QuaeroExposed private BigDecimal finalPrice;
+    private String internalNotes; // not annotated → blocked
+}
+```
+
+No Spring bean is needed. Scanning activates as soon as the first
+`@QuaeroExposed` entity is detected in the JPA metamodel.
+
+---
+
+### Option B — `QuaeroConfigurer` (centralised, Spring-inspired)
+
+Implement `QuaeroConfigurer` and declare it as a Spring bean:
+
+```java
+@Configuration
+public class MyQuaeroSecurity implements QuaeroConfigurer {
+
+    @Override
+    public void configure(QuaeroRegistry registry) {
+        registry
+            .entity("Sale")
+                .allow("id", "finalPrice", "status")
+            .and()
+            .entity("Product")
+                .allowAll()
+            .and()
+            .entity("User")
+                .denyAll();
+    }
+}
+```
+
+Multiple `QuaeroConfigurer` beans can coexist (one per module, for example).
+All policies are merged before the first query runs.
+
+**Permissive mode** — useful for internal tools and demo environments:
+
+```java
+@Configuration
+public class DevQuaeroConfig implements QuaeroConfigurer {
+
+    @Override
+    public void configure(QuaeroRegistry registry) {
+        registry.allowAll(); // explicit denyAll() on an entity still wins
+    }
+}
+```
+
+---
+
+### Merge rules
+
+Both approaches can be combined. Policies are merged using
+**most-restrictive-wins** semantics:
+
+| Scenario | Result |
+|----------|--------|
+| `denyAll()` from any configurer | Entity permanently denied |
+| `@QuaeroExposed` (all fields) + configurer restricts to `{id}` | Only `{id}` accessible |
+| Configurer A allows `{id}`, Configurer B allows `{name}` | Union: `{id, name}` accessible |
+| No `@QuaeroExposed` and no `QuaeroConfigurer` | Validation inactive — all pass |
+
+---
+
+## 15. Demo app
 
 A fully working Spring Boot demo — car dealership data, H2 in-memory, 750 sales,
 825 vehicles, 220 customers — is available at
@@ -1107,7 +1211,7 @@ H2 console: `http://localhost:8080/h2-console`
 
 ---
 
-## 15. Compatibility
+## 16. Compatibility
 
 | Dependency | Version |
 |-----------|---------|
@@ -1125,7 +1229,7 @@ H2 console: `http://localhost:8080/h2-console`
 
 ---
 
-## 16. License
+## 17. License
 
 Distributed under the **Apache License 2.0**.
 See [LICENSE](LICENSE) or https://www.apache.org/licenses/LICENSE-2.0

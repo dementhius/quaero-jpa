@@ -36,9 +36,10 @@
 11. [Ejemplos de selects](#11-ejemplos-de-selects)
 12. [Operadores disponibles](#12-operadores-disponibles)
 13. [Tuple → Map anidado](#13-tuple--map-anidado)
-14. [Aplicación demo](#14-aplicación-demo)
-15. [Compatibilidad](#15-compatibilidad)
-16. [Licencia](#16-licencia)
+14. [Seguridad](#14-seguridad)
+15. [Aplicación demo](#15-aplicación-demo)
+16. [Compatibilidad](#16-compatibilidad)
+17. [Licencia](#17-licencia)
 
 ---
 
@@ -85,7 +86,7 @@ cableado manual de joins.
 Query q = QueryBuilder.builder("Sale")
     .select("id").as("saleId")
     .select("finalPrice").as("revenue").sum()
-    .select("vehicle.trim.model.brand.name", "Inner","Inner","Inner","Inner").as("marca")
+    .select("vehicle.trim.model.brand.name", "INNER","INNER","INNER","INNER").as("marca")
     .filterEqual("vehicle.powertrain.fuelType", "Electric")
     .filterBetween("finalPrice", 20000, 80000)
     .orderDesc("finalPrice")
@@ -198,7 +199,7 @@ Cada nuevo filtro implica nuevo parámetro, nuevo `if`, nuevo test, deploy.
 Query q = QueryBuilder.builder("Sale")
     .select("id").as("saleId")
     .select("finalPrice").as("finalPrice")
-    .select("vehicle.trim.model.brand.name", "Inner","Inner","Inner","Inner").as("marca")
+    .select("vehicle.trim.model.brand.name", "INNER","INNER","INNER","INNER").as("marca")
     .filterAnd(f -> f
         .filterEqual("vehicle.trim.model.brand.name", "Toyota")
         .filterEqual("vehicle.powertrain.fuelType", "Electric"))
@@ -532,6 +533,8 @@ public class QuaeroConfiguration {
 }
 ```
 
+> **Nota:** Quaero registra estos beans automáticamente vía `spring.factories` — la configuración anterior solo es necesaria si quieres personalizarlos. Si defines tus propios beans, anótalos con `@ConditionalOnMissingBean(name = "entities")` y `@ConditionalOnMissingBean(name = "managedTypes")` en lugar del `@ConditionalOnMissingBean` simple, para evitar coincidencias falsas con los beans integrados de Spring `systemProperties` / `systemEnvironment` (ambos de tipo `Map`).
+
 ### Paso 2 — Un endpoint universal
 
 ```java
@@ -585,12 +588,17 @@ Query q = QueryBuilder.builder("Sale")
     .coercionMode(CoercionMode.LENIENT)
     .select("id").as("saleId")
     .select("finalPrice").as("finalPrice")
-    .select("vehicle.trim.model.brand.name", "Inner","Inner","Inner","Inner").as("marca")
+    .select("vehicle.trim.model.brand.name", "INNER","INNER","INNER","INNER").as("marca")
     .filterEqual("vehicle.powertrain.fuelType", "Electric")
     .orderDesc("finalPrice")
     .page(0, 20)
     .build();
 ```
+
+**Consejos para QueryBuilder:**
+
+- **`filterIn` con `SelectStep`:** al encadenar desde `.select().as()`, `filterIn` acepta varargs `Object...` — pasa valores individuales: `.filterIn("campo", "A", "B")`. Pasar un `List` lo envuelve en una colección externa y causa un error de tipo en tiempo de ejecución. Para pasar un `List`, usa `filter(FilterSimpleObject.in("campo", miLista))`.
+- **Nombres de tipo de join:** `QueryBuilder.select(field, joinTypes...)` resuelve los strings mediante `QuaeroJoinType.valueOf()` — usa mayúsculas: `"INNER"`, `"LEFT"`, `"RIGHT"`, `"CROSS"`. En los arrays `joinTypes` del JSON, usa los códigos de visualización: `"Inner"`, `"Left"`, `"Right"`, `"Cross"`.
 
 ---
 
@@ -1075,7 +1083,103 @@ List<Map<String, Object>> resultado = QueryUtils.tupleToMapList(typedQuery.getRe
 
 ---
 
-## 14. Aplicación demo
+## 14. Seguridad
+
+El validador de seguridad de Quaero controla qué entidades JPA y campos pueden
+referenciarse en las consultas recibidas por el endpoint universal. Hay dos
+enfoques complementarios — elige uno o combínalos libremente.
+
+La validación se activa automáticamente en cuanto se registra al menos una
+entidad o configurador. Si no se configura nada, todas las consultas pasan sin
+restricciones (comportamiento retrocompatible).
+
+---
+
+### Opción A — Anotaciones `@QuaeroExposed`
+
+Pon `@QuaeroExposed` en la clase de la entidad para hacerla accesible.
+Opcionalmente, anota campos concretos para restringir cuáles son accesibles:
+
+```java
+import quaero.security.QuaeroExposed;
+
+// Todos los campos accesibles
+@Entity
+@QuaeroExposed
+public class Product { ... }
+
+// Solo 'id', 'name' y 'finalPrice' accesibles; 'internalNotes' bloqueado
+@Entity
+@QuaeroExposed
+public class Sale {
+    @QuaeroExposed private Long id;
+    @QuaeroExposed private String name;
+    @QuaeroExposed private BigDecimal finalPrice;
+    private String internalNotes; // no anotado → bloqueado
+}
+```
+
+No se necesita ningún bean Spring. El escaneo se activa en cuanto se detecta
+la primera entidad `@QuaeroExposed` en el metamodelo JPA.
+
+---
+
+### Opción B — `QuaeroConfigurer` (centralizado, inspirado en Spring Security)
+
+Implementa `QuaeroConfigurer` y decláralo como bean Spring:
+
+```java
+@Configuration
+public class MiSeguridadQuaero implements QuaeroConfigurer {
+
+    @Override
+    public void configure(QuaeroRegistry registry) {
+        registry
+            .entity("Sale")
+                .allow("id", "finalPrice", "status")
+            .and()
+            .entity("Product")
+                .allowAll()
+            .and()
+            .entity("User")
+                .denyAll();
+    }
+}
+```
+
+Pueden coexistir varios beans `QuaeroConfigurer` (uno por módulo Maven, por
+ejemplo). Todas las políticas se fusionan antes de la primera consulta.
+
+**Modo permisivo** — útil para herramientas internas y entornos demo:
+
+```java
+@Configuration
+public class DevQuaeroConfig implements QuaeroConfigurer {
+
+    @Override
+    public void configure(QuaeroRegistry registry) {
+        registry.allowAll(); // un denyAll() explícito en una entidad sigue ganando
+    }
+}
+```
+
+---
+
+### Reglas de fusión
+
+Ambos enfoques pueden combinarse. Las políticas se fusionan con la semántica
+**gana la más restrictiva**:
+
+| Escenario | Resultado |
+|-----------|-----------|
+| `denyAll()` desde cualquier configurador | Entidad permanentemente bloqueada |
+| `@QuaeroExposed` (todos los campos) + configurador restringe a `{id}` | Solo `{id}` accesible |
+| Configurador A permite `{id}`, Configurador B permite `{name}` | Unión: `{id, name}` accesible |
+| Sin `@QuaeroExposed` y sin `QuaeroConfigurer` | Validación inactiva — todo pasa |
+
+---
+
+## 15. Aplicación demo
 
 Una aplicación Spring Boot completamente funcional — datos de una red de concesionarios,
 H2 en memoria, 750 ventas, 825 vehículos, 220 clientes — disponible en
@@ -1096,7 +1200,7 @@ Consola H2: `http://localhost:8080/h2-console`
 
 ---
 
-## 15. Compatibilidad
+## 16. Compatibilidad
 
 | Dependencia | Versión |
 |------------|---------|
@@ -1115,7 +1219,7 @@ Consola H2: `http://localhost:8080/h2-console`
 
 ---
 
-## 16. Licencia
+## 17. Licencia
 
 Distribuido bajo la **Apache License 2.0**.
 Ver [LICENSE](LICENSE) o https://www.apache.org/licenses/LICENSE-2.0
