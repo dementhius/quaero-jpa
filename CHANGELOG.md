@@ -4,6 +4,19 @@
 
 - chore: bump to 1.1.0-SNAPSHOT
 
+## [1.3.0](https://github.com/dementhius/quaero-jpa/compare/v1.2.0...v1.3.0) (2026-03-18)
+
+
+### Features
+
+* add security validator, injectable builders, and fix ConditionalOnMissingBean ([87beabc](https://github.com/dementhius/quaero-jpa/commit/87beabcbfafd8d5f3ad24ce6ac906194b42d11fd))
+
+
+### Documentation
+
+* add Security section and fix QueryBuilder examples in READMEs ([4a6a789](https://github.com/dementhius/quaero-jpa/commit/4a6a789eb3ad344be03a1de932d181b6f6026c41))
+* rewrite comparison section with honest strengths and weaknesses ([327af0f](https://github.com/dementhius/quaero-jpa/commit/327af0fe5b222e243483e9c4b0d34959def54be4))
+
 ## [1.2.0](https://github.com/dementhius/quaero-jpa/compare/v1.1.0...v1.2.0) (2026-03-05)
 
 
